@@ -1,0 +1,74 @@
+import java.io.*;
+import javax.servlet.*;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.*;
+import java.sql.*;
+
+@WebServlet("/auth")
+public class AuthServlet extends HttpServlet {
+
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+
+        String action = request.getParameter("action"); // "login" or "register"
+        String email = request.getParameter("email");
+        String password = request.getParameter("password");
+
+        try (Connection con = DBConnection.getConnection()) {
+
+            if ("register".equals(action)) {
+                String name = request.getParameter("name");
+                PreparedStatement ps = con.prepareStatement("INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)");
+                ps.setString(1, name);
+                ps.setString(2, email);
+                ps.setString(3, password); // hash in real apps
+                ps.setString(4, "customer");
+
+                int result = ps.executeUpdate();
+                if (result > 0) {
+                    response.sendRedirect("login.jsp?msg=registered");
+                } else {
+                    response.sendRedirect("register.jsp?error=1");
+                }
+
+            } else if ("login".equals(action)) {
+                PreparedStatement ps = con.prepareStatement("SELECT * FROM users WHERE email = ? AND password = ?");
+                ps.setString(1, email);
+                ps.setString(2, password); // hash check in real apps
+
+                ResultSet rs = ps.executeQuery();
+                if (rs.next()) {
+                    HttpSession session = request.getSession();
+                    session.setAttribute("user", rs.getString("name"));
+                    session.setAttribute("role", rs.getString("role"));
+                    response.sendRedirect("home.jsp");
+                } else {
+                    response.sendRedirect("login.jsp?error=invalid");
+                }
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            response.sendRedirect("error.jsp");
+        }
+    }
+}
+
+
+
+<!-- login.jsp -->
+<form action="auth" method="post">
+    <input type="hidden" name="action" value="login" />
+    Email: <input type="text" name="email" required /><br/>
+    Password: <input type="password" name="password" required /><br/>
+    <button type="submit">Login</button>
+</form>
+
+<!-- register.jsp -->
+<form action="auth" method="post">
+    <input type="hidden" name="action" value="register" />
+    Name: <input type="text" name="name" required /><br/>
+    Email: <input type="email" name="email" required /><br/>
+    Password: <input type="password" name="password" required /><br/>
+    <button type="submit">Register</button>
+</form>
